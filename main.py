@@ -1,5 +1,3 @@
-st.set_page_config(page_title="서울시 자전거도로 인프라 분석", layout="wide")
-
 st.title("🚴 서울시 자전거도로 인프라 및 불균형 분석 대시보드")
 st.markdown("""
 ---
