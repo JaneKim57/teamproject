@@ -90,7 +90,7 @@ folium.Choropleth(
     name="choropleth",
     data=df,
     columns=["자치구", indicator],
-    key_on="feature.properties.name",
+    key_on="feature.properties.sggnm",  # 수정된 부분
     fill_color="YlGnBu",
     fill_opacity=0.7,
     line_opacity=0.2,
