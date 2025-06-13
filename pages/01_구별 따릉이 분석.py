@@ -83,18 +83,28 @@ def load_geojson():
 
 geojson = load_geojson()
 
+# 지도 생성
 m = folium.Map(location=[37.5665, 126.9780], zoom_start=11, tiles="cartodbpositron")
 
+# Choropleth 계층
 folium.Choropleth(
     geo_data=geojson,
     name="choropleth",
     data=df,
     columns=["자치구", indicator],
-    key_on="feature.properties.sggnm",  # 수정된 부분
+    key_on="feature.properties.sggnm",
     fill_color="YlGnBu",
     fill_opacity=0.7,
     line_opacity=0.2,
     legend_name=indicator
 ).add_to(m)
 
+# 🔍 자치구 이름 툴팁 추가
+folium.GeoJson(
+    geojson,
+    name="자치구 이름",
+    tooltip=folium.GeoJsonTooltip(fields=["sggnm"], aliases=["자치구:"])
+).add_to(m)
+
+# 지도 출력
 st_folium(m, width=800, height=600)
