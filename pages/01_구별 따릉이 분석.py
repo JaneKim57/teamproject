@@ -2,42 +2,68 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# 제목
-st.title("서울시 자치구별 자전거도로 밀도 시각화")
+@st.cache_data
+def load_data():
+    # CSV 파일 경로 (같은 디렉토리에 두세요)
+    pop_file = "등록인구_동별(2024).csv"
+    area_file = "행정구역_구별(2024).csv"
+    bike_file = "자전거도로_현황(2024).csv"
+    
+    # 인구 데이터
+    df_pop = pd.read_csv(pop_file, encoding='utf-8').iloc[1:].copy()
+    df_pop.columns = ['자치구', '항목', '인구']
+    df_pop = df_pop[df_pop['항목'] == '계']
+    df_pop['인구'] = df_pop['인구'].astype(int)
 
-# 데이터 불러오기 (실제 앱 배포 시 CSV 파일로 대체 가능)
-data = pd.DataFrame({
-    '구': ['강남구', '강동구', '강북구', '강서구', '관악구'],  # 예시 구 일부
-    '자전거도로_길이_km': [114.0, 76.6, 8.7, 77.6, 27.7],
-    '면적': [79.01, 49.18, 47.20, 82.89, 59.14],
-})
-data['자전거도로_밀도(km/km²)'] = data['자전거도로_길이_km'] / data['면적']
+    # 면적 데이터
+    df_area = pd.read_csv(area_file, encoding='utf-8').iloc[2:].copy()
+    df_area.columns = ['서울시', '자치구', '면적']
+    df_area['면적'] = df_area['면적'].astype(float)
 
-# 자치구 선택 옵션
-selected_gu = st.multiselect(
-    "자치구 선택",
-    options=data['구'].unique(),
-    default=data['구'].unique()
-)
+    # 자전거도로 데이터
+    df_bike = pd.read_csv(bike_file, encoding='utf-8').iloc[2:].copy()
+    df_bike.columns = ['합계', '구분', '자치구', '자전거도로_길이']
+    df_bike['자전거도로_길이'] = df_bike['자전거도로_길이'].astype(float)
 
-# 선택된 자치구만 필터링
-data_filtered = data[data['구'].isin(selected_gu)]
+    # 병합
+    df = pd.merge(df_pop[['자치구', '인구']], df_area[['자치구', '면적']], on='자치구')
+    df = pd.merge(df, df_bike[['자치구', '자전거도로_길이']], on='자치구')
 
-# Plotly bar chart
-fig = px.bar(
-    data_filtered,
-    x='구',
-    y='자전거도로_밀도(km/km²)',
-    title='자치구별 자전거도로 밀도 (km/km²)',
-    labels={'자전거도로_밀도(km/km²)': '자전거도로 밀도 (km/km²)'},
-    text='자전거도로_밀도(km/km²)'
-)
-fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+    # 지표 계산
+    df['인구밀도'] = df['인구'] / df['면적']
+    df['자전거도로_밀도'] = df['자전거도로_길이'] / df['면적']
+    df['1인당_자전거도로'] = df['자전거도로_길이'] / df['인구']
+    df['불균형_지수'] = df['인구밀도'] / df['자전거도로_밀도']
 
-st.plotly_chart(fig)
+    return df
 
-# 데이터 테이블 표시
-st.subheader("자치구별 자전거도로 밀도 데이터")
-st.dataframe(data_filtered.reset_index(drop=True))
+# 데이터 로드
+df = load_data()
 
+# 앱 UI
+st.title("🚴 서울시 자전거도로 인프라 및 불균형 분석")
+st.markdown("서울시 자치구별 인구, 면적, 자전거도로 데이터를 기반으로 다양한 인프라 지표를 분석합니다.")
+
+# 지표 선택
+indicator = st.selectbox("📊 시각화할 지표 선택", 
+                         ["자전거도로_길이", "자전거도로_밀도", "1인당_자전거도로", "인구밀도", "불균형_지수"])
+
+# Top N 슬라이더
+top_n = st.slider("상위 자치구 수", min_value=5, max_value=25, value=10)
+
+# 막대 그래프
+sorted_df = df.sort_values(by=indicator, ascending=False).head(top_n)
+bar_fig = px.bar(sorted_df, x='자치구', y=indicator, color=indicator,
+                 title=f"{indicator} 기준 상위 {top_n} 자치구",
+                 labels={'자치구': '자치구', indicator: indicator})
+
+st.plotly_chart(bar_fig, use_container_width=True)
+
+# 산점도
+st.subheader("⚖️ 인구밀도 vs 자전거도로 밀도 비교")
+scatter_fig = px.scatter(df,
+                         x="인구밀도", y="자전거도로_밀도",
+                         size="1인당_자전거도로", color="불균형_지수",
+                         hover_name="자치구",
+                         title="인구밀도 대비 자전거도로 밀도 (색: 불균형 지수, 크기: 1인당 도로길이)")
+st.plotly_chart(scatter_fig, use_container_width=True)
